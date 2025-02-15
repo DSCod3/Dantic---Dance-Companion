@@ -1,9 +1,11 @@
-from videoDownloader import download_video,relativeToAbsolute
+import time
+from videoDownloader import download_video, relativeToAbsolute
 # from videoInterpreter import interpret_video
 
 model = '/pose models/pose_landmarker_lite.task'
-videoURL = "https://www.youtube.com/watch?v=6WsM9ExX7Bg" # str(input("Enter the URL of the video: "))
-relativeVideoPath = r'/src/video.mp4'
+videoURL = str(input("Enter the URL of the video: "))
+timestamp = int(time.time())
+relativeVideoPath = f'/src/video_{timestamp}.mp4'
 
 def main():
     print("running main")
