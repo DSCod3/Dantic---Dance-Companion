@@ -6,7 +6,7 @@ from videoDownloader import download_video, relativeToAbsolute
 model = '/pose models/pose_landmarker_lite.task'
 
 def main(videoURL, relativeVideoPath):
-    print("Running main.py: downloading video...")
+    # print("Running main.py: downloading video...")
     download_video(videoURL, relativeVideoPath)
     # Return the absolute path to the downloaded video.
     return relativeToAbsolute(relativeVideoPath)
@@ -17,4 +17,4 @@ if __name__ == "__main__":
     timestamp = int(time.time())
     relativeVideoPath = f'/src/videos/video_{timestamp}.mp4'
     video_path = main(videoURL, relativeVideoPath)
-    print("Video downloaded to", video_path)
+    # print("Video downloaded to", video_path)

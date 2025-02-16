@@ -12,11 +12,11 @@ import time
 # bt_serial = serial.Serial(port='/dev/tty.HC-05-DevB', baudrate=9600, timeout=1)
 
 # For testing without a Bluetooth device, we simulate the connection:
-class DummySerial:
-    def write(self, data):
-        print("Simulated Bluetooth Send:", data.decode())
+# class DummySerial:
+    # def write(self, data):
+        # print("Simulated Bluetooth Send:", data.decode())
         
-bt_serial = DummySerial()
+# bt_serial = DummySerial()
 
 # ========================================================
 # Error Processing Functions
@@ -44,12 +44,12 @@ def map_error_to_color(error, max_error=0.5):
     blue = 0
     return (red, green, blue)
 
-def send_bluetooth_command(command):
+# def send_bluetooth_command(command):
     """
     Send command over Bluetooth.
     Still have to code this out fully, but for now, just printing it.
     """
-    bt_serial.write(command.encode())
+    # bt_serial.write(command.encode())
 
 def process_hand_errors(expected_left, current_left, expected_right, current_right):
     """
@@ -70,7 +70,7 @@ def process_hand_errors(expected_left, current_left, expected_right, current_rig
     command = f"L:{intensity_left};R:{intensity_right}"
     
     # Transmit command over Bluetooth
-    send_bluetooth_command(command)
+    # send_bluetooth_command(command)
     
     return command, intensity_left, intensity_right, left_color, right_color
 

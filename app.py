@@ -13,6 +13,8 @@ import main as main_mod  # To use the download functionality from main.py
 from video_processing import get_expected_coordinates
 from coordinate_overlays import get_pose_coordinates, draw_overlays
 
+fps = 60.0  # include `.0` for floating point arithmetic
+
 st.title("DanticDance: Dual Stream Overlay App")
 st.write("Enter a YouTube URL to download the expected dance video. Then view both streams:")
 st.write("**Top:** Expected Dance Video with red overlays and diagonal lines.")
@@ -31,6 +33,9 @@ if download_button and video_url != "":
     # Call main.py's download function
     st.session_state.downloaded_video_path = main_mod.main(video_url, relative_video_path)
     st.success(f"Video downloaded to {st.session_state.downloaded_video_path}")
+
+    cap = cv2.VideoCapture(relativeToAbsolute(f"/src/videos/video_{timestamp}.mp4"))
+    videoLength = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
 # --- Section 2: Set up Video Streams ---
 st.header("Expected Dance Video (Downloaded)")
@@ -62,10 +67,10 @@ while True:
     # --- Top Stream: Expected Video ---
     if video_cap is not None:
         ret_v, frame_v = video_cap.read()
-        if not ret_v:
-            # Restart video if ended.
-            video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            ret_v, frame_v = video_cap.read()
+        # if not ret_v:
+        #     # Restart video if ended.
+        #     video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        #     ret_v, frame_v = video_cap.read()
         frame_v = cv2.resize(frame_v, (640,480))
         # Extract expected coordinates from the video frame.
         expected_coords = get_expected_coordinates(frame_v)
@@ -111,5 +116,5 @@ while True:
     else:
         webcam_placeholder.image(dummy_webcam_frame, channels="RGB")
     
-    # Adjust sleep for roughly 30 FPS.
-    time.sleep(0.033)
+    # Adjust sleep for roughly 30 FPS
+    time.sleep(1/fps)

@@ -7,7 +7,7 @@ def relativeToAbsolute(path):
 
 def download_video(url, path):
     path = relativeToAbsolute(path)
-    print("Downloading to:", path)
+    # print("Downloading to:", path)
     ydl_opts = {
         'format': 'bestvideo',
         'merge_output_format': 'mp4',
