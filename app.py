@@ -13,7 +13,7 @@ import main as main_mod  # To use the download functionality from main.py
 from video_processing import get_expected_coordinates
 from coordinate_overlays import get_pose_coordinates, draw_overlays
 
-st.title("HaptiDance: Dual Stream Overlay App")
+st.title("DanticDance: Dual Stream Overlay App")
 st.write("Enter a YouTube URL to download the expected dance video. Then view both streams:")
 st.write("**Top:** Expected Dance Video with red overlays and diagonal lines.")
 st.write("**Bottom:** Live Webcam Feed with green overlays (live) overlaid with red expected markers plus error indicators.")
@@ -54,7 +54,7 @@ if not webcam_cap.isOpened():
     dummy_webcam_frame = np.zeros((480,640,3), dtype=np.uint8)
 
 # For error processing on the webcam feed, we need to compare live (green) vs expected (red).
-# We will use the expected coordinates extracted from the expected video.
+# Use the expected coordinates extracted from the expected video.
 expected_coords_global = None
 
 # Main loop: update both streams.
