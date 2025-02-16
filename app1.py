@@ -40,8 +40,9 @@ def compute_global_error(expected, live):
     right_error = np.linalg.norm(np.array(expected["right_arm"]) - np.array(live["right_arm"]))
     return left_error, right_error
 
-def map_error_to_intensity(error, max_error=0.1):
-    return int(min(error / max_error, 1.0) * 100)
+def map_error_to_intensity(error, max_error=0.4):
+    intensity = 100 * (1 - np.exp(-global_error / scale))
+    return int(intensity)
 
 # --- Streamlit UI Setup ---
 
@@ -210,8 +211,9 @@ while True:
         frame_w = draw_overlays(frame_w, live_coords, exp_coords_for_webcam)
         left_error = np.linalg.norm(np.array(exp_coords_for_webcam["left_arm"]) - np.array(live_coords["left_arm"]))
         right_error = np.linalg.norm(np.array(exp_coords_for_webcam["right_arm"]) - np.array(live_coords["right_arm"]))
-        intensity_left = int(min(left_error/0.1, 1.0) * 100)
-        intensity_right = int(min(right_error/0.1, 1.0) * 100)
+        print("Left Error is {left_error} and Right Error is {right_error}")
+        intensity_left = int(min(left_error/0.4, 1.0) * 100)
+        intensity_right = int(min(right_error/0.4, 1.0) * 100)
         error_text = f"Left Error: {left_error:.2f} | Intensity: {intensity_left}%   Right Error: {right_error:.2f} | Intensity: {intensity_right}%"
         cv2.putText(frame_w, error_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
         bottom_frame = cv2.cvtColor(frame_w, cv2.COLOR_BGR2RGB)
@@ -224,7 +226,7 @@ while True:
         webcam_placeholder.image(dummy_webcam_frame, channels="RGB")
     
     csv_idx += 1
-    elapsed = time.time() - start_time
+    elapsed = time.time() - start_time––
     delay = max(0, (1/playback_speed) - elapsed)
     time.sleep(delay)
     
