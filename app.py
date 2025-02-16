@@ -1,5 +1,6 @@
 # app.py
 import os
+import csv
 os.chdir(os.path.dirname(os.path.abspath(__file__)))  # Ensure working directory is correct
 
 import cv2
@@ -14,6 +15,7 @@ from video_processing import get_expected_coordinates
 from coordinate_overlays import get_pose_coordinates, draw_overlays
 
 fps = 60.0  # include `.0` for floating point arithmetic
+videoLength = 0
 
 st.title("DanticDance: Dual Stream Overlay App")
 st.write("Enter a YouTube URL to download the expected dance video. Then view both streams:")
@@ -61,9 +63,41 @@ if not webcam_cap.isOpened():
 # For error processing on the webcam feed, we need to compare live (green) vs expected (red).
 # Use the expected coordinates extracted from the expected video.
 expected_coords_global = None
+    
+# --- Section 3: Interpret video into axis positions ---
+expected_coords_global = {
+            "left_arm": (0, 0),
+            "right_arm": (0, 0),
+            "left_leg": (0, 0),
+            "right_leg": (0, 0)
+        }
+for i in range(1, videoLength + 1):
+    ret_v, frame_v = video_cap.read()
+    expected_coords = get_expected_coordinates(frame_v)
+    if expected_coords is not None:
+        expected_coords_global = expected_coords  # Save for later use in webcam stream.
+        # For the expected video, overlay red markers by passing the same dict for both parameters.
+        frame_v = draw_overlays(frame_v, expected_coords, expected_coords)
+    # write position to coords.csv
+    with open("coords.csv", mode="a", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow([
+            expected_coords_global["left_arm"][0],
+            expected_coords_global["left_arm"][1],
+            expected_coords_global["right_arm"][0],
+            expected_coords_global["right_arm"][1],
+            expected_coords_global["left_leg"][0],
+            expected_coords_global["left_leg"][1],
+            expected_coords_global["right_leg"][0],
+            expected_coords_global["right_leg"][1]
+        ])
 
-# Main loop: update both streams.
+# --- Section 4: Play and compare video and live movements ---
+
+f = 0
+
 while True:
+    f += 1
     # --- Top Stream: Expected Video ---
     if video_cap is not None:
         ret_v, frame_v = video_cap.read()
@@ -72,18 +106,12 @@ while True:
         #     video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
         #     ret_v, frame_v = video_cap.read()
         frame_v = cv2.resize(frame_v, (640,480))
-        # Extract expected coordinates from the video frame.
-        expected_coords = get_expected_coordinates(frame_v)
-        if expected_coords is not None:
-            expected_coords_global = expected_coords  # Save for later use in webcam stream.
-            # For the expected video, overlay red markers by passing the same dict for both parameters.
-            frame_v = draw_overlays(frame_v, expected_coords, expected_coords)
         video_frame_rgb = cv2.cvtColor(frame_v, cv2.COLOR_BGR2RGB)
         video_placeholder.image(video_frame_rgb, channels="RGB")
     else:
         video_placeholder.image(dummy_video_frame, channels="RGB")
-    
-    # --- Bottom Stream: Live Webcam ---
+
+    # --- Bottom Stream: Live Webcam ---  
     if webcam_cap is not None:
         ret_w, frame_w = webcam_cap.read()
         if not ret_w:
@@ -102,6 +130,14 @@ while True:
         if expected_coords_global is not None:
             frame_w = draw_overlays(frame_w, live_coords, expected_coords_global)
             # Compute error (for arms) and overlay error/intensity indicators.
+
+            # csv to dict
+            data = np.genfromtxt("coords.csv", delimiter=",", filling_values=np.nan)
+            coords_f = data[f]
+            # print(coords_f)
+            keys = ["left_arm", "right_arm", "left_leg", "right_leg"]
+            coords_dict = {keys[i]: (coords_f[2 * i], coords_f[2 * i + 1]) for i in range(len(keys))}
+
             left_error = np.linalg.norm(np.array(expected_coords_global["left_arm"]) - np.array(live_coords["left_arm"]))
             right_error = np.linalg.norm(np.array(expected_coords_global["right_arm"]) - np.array(live_coords["right_arm"]))
             intensity_left = int(min(left_error/0.1,1.0)*100)
@@ -116,5 +152,5 @@ while True:
     else:
         webcam_placeholder.image(dummy_webcam_frame, channels="RGB")
     
-    # Adjust sleep for roughly 30 FPS
+    # Adjust sleep for sx FPS
     time.sleep(1/fps)
