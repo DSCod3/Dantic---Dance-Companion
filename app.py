@@ -1,12 +1,14 @@
 # app.py
 import os
-import csv
 os.chdir(os.path.dirname(os.path.abspath(__file__)))  # Ensure working directory is correct
 
 import cv2
 import numpy as np
 import streamlit as st
 import time
+import csv
+import socket
+import random
 
 # Import custom modules
 from videoDownloader import download_video, relativeToAbsolute
@@ -16,6 +18,10 @@ from coordinate_overlays import get_pose_coordinates, draw_overlays
 
 fps = 60.0  # include `.0` for floating point arithmetic
 videoLength = 0
+
+ESP_IP = "192.168.72.124"  # wifi dependent
+ESP_PORT = 4210
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 st.title("DanticDance: Dual Stream Overlay App")
 st.write("Enter a YouTube URL to download the expected dance video. Then view both streams:")
@@ -144,6 +150,9 @@ while True:
             intensity_right = int(min(right_error/0.1,1.0)*100)
             error_text = f"Left Error: {left_error:.2f} Intensity: {intensity_left}% | Right Error: {right_error:.2f} Intensity: {intensity_right}%"
             cv2.putText(frame_w, error_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
+            
+            data = f"{intensity_left},{intensity_right}\n"
+            sock.sendto(data.encode(), (ESP_IP, ESP_PORT))
         else:
             # If expected coordinates not available, just overlay live coordinates.
             frame_w = draw_overlays(frame_w, live_coords, live_coords)
@@ -152,5 +161,5 @@ while True:
     else:
         webcam_placeholder.image(dummy_webcam_frame, channels="RGB")
     
-    # Adjust sleep for sx FPS
+    # Adjust sleep for x FPS
     time.sleep(1/fps)
