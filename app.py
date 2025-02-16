@@ -1,133 +1,115 @@
 # app.py
+import os
+os.chdir(os.path.dirname(os.path.abspath(__file__)))  # Ensure working directory is correct
+
 import cv2
 import numpy as np
 import streamlit as st
 import time
 
-# Import our custom modules
+# Import custom modules
+from videoDownloader import download_video, relativeToAbsolute
+import main as main_mod  # To use the download functionality from main.py
+from video_processing import get_expected_coordinates
 from coordinate_overlays import get_pose_coordinates, draw_overlays
-from video_processing import get_dummy_expected_coordinates  # For expected coordinates
 
-# ========================================================
-# Bluetooth Setup for macOS (Simulated)
-# ========================================================
-# On macOS, a real Bluetooth port might look like '/dev/tty.HC-05-DevB'.
-# Uncomment and adjust the line below if you have the actual device:
-# import serial
-# bt_serial = serial.Serial(port='/dev/tty.HC-05-DevB', baudrate=9600, timeout=1)
+st.title("HaptiDance: Dual Stream Overlay App")
+st.write("Enter a YouTube URL to download the expected dance video. Then view both streams:")
+st.write("**Top:** Expected Dance Video with red overlays and diagonal lines.")
+st.write("**Bottom:** Live Webcam Feed with green overlays (live) overlaid with red expected markers plus error indicators.")
 
-# For now, we simulate Bluetooth communication:
-class DummySerial:
-    def write(self, data):
-        print("Simulated Bluetooth Send:", data.decode())
+# --- Section 1: Download Video ---
+video_url = st.text_input("Enter YouTube URL", "")
+if "downloaded_video_path" not in st.session_state:
+    st.session_state.downloaded_video_path = None
 
-bt_serial = DummySerial()
+download_button = st.button("Download Video")
+if download_button and video_url != "":
+    st.write("Downloading video, please wait...")
+    timestamp = int(time.time())
+    relative_video_path = f"/src/videos/video_{timestamp}.mp4"
+    # Call main.py's download function
+    st.session_state.downloaded_video_path = main_mod.main(video_url, relative_video_path)
+    st.success(f"Video downloaded to {st.session_state.downloaded_video_path}")
 
-# ========================================================
-# Error Processing Functions
-# ========================================================
-def compute_error(expected, current):
-    """Compute Euclidean distance between expected and current coordinates."""
-    return np.linalg.norm(current - expected)
+# --- Section 2: Set up Video Streams ---
+st.header("Expected Dance Video (Downloaded)")
+video_placeholder = st.empty()
 
-def map_error_to_intensity(error, max_error=0.1):
-    """
-    Map error (0 to max_error) to an intensity value between 0 and 100.
-    If error exceeds max_error, intensity saturates at 100.
-    """
-    intensity = int(min(error / max_error, 1.0) * 100)
-    return intensity
+st.header("Live Webcam Feed")
+webcam_placeholder = st.empty()
 
-def send_bluetooth_command(command):
-    """Simulate sending a command via Bluetooth."""
-    bt_serial.write(command.encode())
+# Open downloaded video if available; otherwise, show a dummy frame.
+if st.session_state.downloaded_video_path:
+    video_cap = cv2.VideoCapture(st.session_state.downloaded_video_path)
+else:
+    video_cap = None
+    dummy_video_frame = np.zeros((480,640,3), dtype=np.uint8)
 
-def process_error_and_command(expected_coords, actual_coords):
-    """
-    Compute errors for left and right arms, map errors to intensities,
-    form a command string, and send it over Bluetooth.
-    Returns the command and error/intensity data.
-    """
-    error_left = compute_error(expected_coords["left_arm"], actual_coords["left_arm"])
-    error_right = compute_error(expected_coords["right_arm"], actual_coords["right_arm"])
-    
-    intensity_left = map_error_to_intensity(error_left)
-    intensity_right = map_error_to_intensity(error_right)
-    
-    command = f"L:{intensity_left};R:{intensity_right}"
-    send_bluetooth_command(command)
-    
-    return command, intensity_left, intensity_right, error_left, error_right
+# Open the webcam.
+webcam_cap = cv2.VideoCapture(0)
+if not webcam_cap.isOpened():
+    st.write("Webcam not found.")
+    webcam_cap = None
+    dummy_webcam_frame = np.zeros((480,640,3), dtype=np.uint8)
 
-# ========================================================
-# Streamlit GUI Setup
-# ========================================================
-st.title("HaptiDance: Coordinate Overlay & Error Processing Test")
-st.write("This app overlays coordinate markers and diagonal lines on the webcam feed,")
-st.write("computes errors between dummy expected and actual dance positions, and simulates Bluetooth transmission.")
+# For error processing on the webcam feed, we need to compare live (green) vs expected (red).
+# We will use the expected coordinates extracted from the expected video.
+expected_coords_global = None
 
-# Placeholder for video feed
-frame_placeholder = st.empty()
-
-# Get expected coordinates from the dummy video_processing module
-expected_coords = get_dummy_expected_coordinates()
-# For testing, define dummy actual coordinates that differ slightly from expected.
-dummy_actual_coords = {
-    "left_arm": np.array([0.32, 0.52]),
-    "right_arm": np.array([0.68, 0.51]),
-    "left_leg": np.array([0.36, 0.88]),
-    "right_leg": np.array([0.64, 0.91])
-}
-
-# Attempt to open the webcam; if not available, use a dummy black image.
-cap = cv2.VideoCapture(0)
-if not cap.isOpened():
-    st.write("Webcam not found. Using a dummy image.")
-    cap = None
-    dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-
-# Main loop to update the GUI.
+# Main loop: update both streams.
 while True:
-    # 1. Grab a frame from the webcam (or use dummy image)
-    if cap:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        frame = cv2.resize(frame, (640, 480))
+    # --- Top Stream: Expected Video ---
+    if video_cap is not None:
+        ret_v, frame_v = video_cap.read()
+        if not ret_v:
+            # Restart video if ended.
+            video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            ret_v, frame_v = video_cap.read()
+        frame_v = cv2.resize(frame_v, (640,480))
+        # Extract expected coordinates from the video frame.
+        expected_coords = get_expected_coordinates(frame_v)
+        if expected_coords is not None:
+            expected_coords_global = expected_coords  # Save for later use in webcam stream.
+            # For the expected video, overlay red markers by passing the same dict for both parameters.
+            frame_v = draw_overlays(frame_v, expected_coords, expected_coords)
+        video_frame_rgb = cv2.cvtColor(frame_v, cv2.COLOR_BGR2RGB)
+        video_placeholder.image(video_frame_rgb, channels="RGB")
     else:
-        frame = dummy_frame.copy()
+        video_placeholder.image(dummy_video_frame, channels="RGB")
     
-    # === STEP A: Extract live pose coordinates ===
-    # Call get_pose_coordinates to extract live coordinates from the current frame.
-    # This will use MediaPipe Holistic internally (THANK GOD IT WORKS)
-    live_coords = get_pose_coordinates(frame)
+    # --- Bottom Stream: Live Webcam ---
+    if webcam_cap is not None:
+        ret_w, frame_w = webcam_cap.read()
+        if not ret_w:
+            break
+        frame_w = cv2.resize(frame_w, (640,480))
+        live_coords = get_pose_coordinates(frame_w)
+        if live_coords is None:
+            # If live pose is not detected, use a fallback dummy.
+            live_coords = {
+                "left_arm": np.array([0.32, 0.52]),
+                "right_arm": np.array([0.68, 0.51]),
+                "left_leg": np.array([0.36, 0.88]),
+                "right_leg": np.array([0.64, 0.91])
+            }
+        # If we have expected coordinates (from the video), overlay them on the webcam feed.
+        if expected_coords_global is not None:
+            frame_w = draw_overlays(frame_w, live_coords, expected_coords_global)
+            # Compute error (for arms) and overlay error/intensity indicators.
+            left_error = np.linalg.norm(np.array(expected_coords_global["left_arm"]) - np.array(live_coords["left_arm"]))
+            right_error = np.linalg.norm(np.array(expected_coords_global["right_arm"]) - np.array(live_coords["right_arm"]))
+            intensity_left = int(min(left_error/0.1,1.0)*100)
+            intensity_right = int(min(right_error/0.1,1.0)*100)
+            error_text = f"Left Error: {left_error:.2f} Intensity: {intensity_left}% | Right Error: {right_error:.2f} Intensity: {intensity_right}%"
+            cv2.putText(frame_w, error_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
+        else:
+            # If expected coordinates not available, just overlay live coordinates.
+            frame_w = draw_overlays(frame_w, live_coords, live_coords)
+        webcam_frame_rgb = cv2.cvtColor(frame_w, cv2.COLOR_BGR2RGB)
+        webcam_placeholder.image(webcam_frame_rgb, channels="RGB")
+    else:
+        webcam_placeholder.image(dummy_webcam_frame, channels="RGB")
     
-    # For testing, if live_coords is None (i.e., no pose detected), use dummy actual coordinates.
-    if live_coords is None:
-        live_coords = {
-            "left_arm": np.array([0.32, 0.52]),
-            "right_arm": np.array([0.68, 0.51]),
-            "left_leg": np.array([0.36, 0.88]),
-            "right_leg": np.array([0.64, 0.91])
-        }
-    
-    # === STEP B: Draw overlays ===
-    # This function uses both live_coords and expected_coords.
-    frame = draw_overlays(frame, live_coords, expected_coords)
-    
-    # === STEP C: Process Errors & Send Commands ===
-    # Compute error between expected and live positions (for arms in this case)
-    command, intensity_left, intensity_right, error_left, error_right = process_error_and_command(expected_coords, live_coords)
-    
-    # Overlay error and command information on the frame.
-    overlay_text = (f"Left Error: {error_left:.2f} Intensity: {intensity_left}% | "
-                    f"Right Error: {error_right:.2f} Intensity: {intensity_right}%")
-    cv2.putText(frame, overlay_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-    cv2.putText(frame, f"Command: {command}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-    
-    # Convert the frame from BGR to RGB for displaying in Streamlit.
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    frame_placeholder.image(frame_rgb, channels="RGB")
-    
-    # Sleep to simulate ~30 FPS.
-    time.sleep(0.0166)
+    # Adjust sleep for roughly 30 FPS.
+    time.sleep(0.033)
