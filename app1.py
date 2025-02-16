@@ -6,12 +6,17 @@ import numpy as np
 import streamlit as st
 import time
 import csv
+import socket
 
 # Import custom modules
 from videoDownloader import download_video, relativeToAbsolute
 import main as main_mod  # for downloading video
 from video_processing import get_expected_coordinates
 from coordinate_overlays import get_pose_coordinates, draw_overlays
+
+ESP_IP = "192.168.72.112"  # wifi dependent
+ESP_PORT = 4210
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 # --- Helper functions ---
 def resize_with_aspect_ratio(frame, width=None, height=None, inter=cv2.INTER_AREA):
@@ -183,6 +188,12 @@ while True:
         cv2.putText(frame_w, error_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
         bottom_frame = cv2.cvtColor(frame_w, cv2.COLOR_BGR2RGB)
         webcam_placeholder.image(bottom_frame, channels="RGB")
+        left_error = np.linalg.norm(np.array(csv_coords[csv_idx % num_csv_frames]["left_arm"]) - np.array(live_coords["left_arm"]))
+        right_error = np.linalg.norm(np.array(csv_coords[csv_idx % num_csv_frames]["right_arm"]) - np.array(live_coords["right_arm"]))
+        intensity_left = int(min(left_error/0.1,1.0)*100)
+        intensity_right = int(min(right_error/0.1,1.0)*100)
+        data = f"{intensity_left},{intensity_right}\n"
+        sock.sendto(data.encode(), (ESP_IP, ESP_PORT))
     else:
         webcam_placeholder.image(dummy_webcam_frame, channels="RGB")
     

@@ -19,7 +19,7 @@ from coordinate_overlays import get_pose_coordinates, draw_overlays
 fps = 60.0  # include `.0` for floating point arithmetic
 videoLength = 0
 
-ESP_IP = "192.168.72.124"  # wifi dependent
+ESP_IP = "192.168.72.112"  # wifi dependent
 ESP_PORT = 4210
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
